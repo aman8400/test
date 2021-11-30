@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:email="http://www.mulesoft.org/schema/mule/email" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/email http://www.mulesoft.org/schema/mule/email/current/mule-email.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="8693cbce-5fb0-43fb-a20c-d20f1fc0c9d1" >
+		<http:listener-connection host="0.0.0.0" port="8081" />
+	</http:listener-config>
+	<http:request-config name="HTTP_Request_configuration" doc:name="HTTP Request configuration" doc:id="6ba1b0ab-c46b-4873-aec6-e7185a44c259" >
+		<http:request-connection host="api.openweathermap.org" port="443" protocol="HTTPS"/>
+	</http:request-config>
+	<email:smtp-config name="Email_global_SMTP" doc:name="Email SMTP" doc:id="c4db6513-f227-4f3a-8833-edf61cb68e6c" >
+		<email:smtp-connection host="smtp.gmail.com" port="587" user="aman.o.srivastava@apisero.com" password="Aman@8400" >
+			<email:properties >
+				<email:property key="mail.smtp.starttls.enable" value="true" />
+			</email:properties>
+		</email:smtp-connection>
+	</email:smtp-config>
+	<flow name="testFlow" doc:id="617c2f2b-6ef2-4950-aef6-9f534150f3cd" >
+		<http:listener doc:name="Listener" doc:id="26ba372b-faeb-4ac1-a168-ea2cd375764f" config-ref="HTTP_Listener_config" path="/weather"/>
+		<set-variable value='#[attributes.queryParams]' doc:name="queryParameter" doc:id="955fd783-547a-467c-bb7a-e28927c1da50" variableName="parameter"/>
+		<http:request method="GET" doc:name="Request" doc:id="2d8bf29b-1297-4c4d-91b9-5d17b1979497" config-ref="HTTP_Request_configuration" path='/data/2.5/weather'>
+			<http:query-params ><![CDATA[#[output application/java
+---
+{
+	"appid" : "c7c0ff4bb7027415665cf2c71eeff96d",
+	"lat" : vars.parameter.lat,
+	"lon" : vars.parameter.long
+}]]]></http:query-params>
+		</http:request>
+		<ee:transform doc:name="Transform Message" doc:id="b8faf584-2422-4a8d-b62d-ac3fff97bee2" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<choice doc:name="Choice" doc:id="4482ee34-891e-4f89-b7d5-c8382cb0dedd" >
+			<when expression="#[payload.weather[0].main == 'Clouds']">
+				<ee:transform doc:name="Transform Message" doc:id="eda393a6-7f6d-4ff1-bef3-a88ab9cb6119">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"message": "Bad weather"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+				<email:send doc:name="Send" doc:id="a21c0d40-7fed-4635-bb84-fa105e739d1f" config-ref="Email_global_SMTP" fromAddress="aman.o.srivastava@apisero.com" subject="weather Report" >
+					<email:to-addresses >
+						<email:to-address value="rishu.aman234@gmail.com" />
+					</email:to-addresses>
+					<email:body contentType="application/json" encoding="UTF-8" />
+				</email:send>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Transform Message" doc:id="d7780d6a-6028-4342-a746-a8bc48e1ba09" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+		<logger level="INFO" doc:name="Logger" doc:id="0b094aeb-6a74-42d3-97e0-ec29ee38716d" message="successfully executed"/>
+	</flow>
+</mule>
